@@ -42,6 +42,7 @@ private:
         float angle;
         float scale;
         int health;
+        int bounce;
     };
 
     std::vector<sStars> vecStars;
@@ -58,6 +59,9 @@ private:
     int groundLevel = 95;
     int nScore;
     bool bDead;
+
+    // time
+    //std::chrono::duration<double> durTimeOnGround(0);
 
 protected:
     // Called by olcConsoleGameEngine
@@ -162,7 +166,7 @@ protected:
         // update and draw bullets
         for (auto& b : vecBullets)
         {
-            b.x += b.dx * fElapsedTime;
+            //b.x += b.dx * fElapsedTime;
             b.y += b.dy * fElapsedTime;
             Draw(b.x, b.y, PIXEL_SOLID, FG_RED);
         }
@@ -174,17 +178,17 @@ protected:
             {
                 if (IsPointInCircle(m.x, m.y, m.scale, b.x, b.y))
                 {
-                    // meteor hit! remove from gamespace
-                    b.y = -100;
+                    // meteor hit! remove bullet from gamespace
+                    b.x = -100;
                     nScore += 100;
 
                     // create 2 debris falling from the sky
-                    float nx1 = ((float)std::rand() / (float)RAND_MAX) * 10.0f - 5.0f;
-                    float ny1 = ((float)std::rand() / (float)RAND_MAX) * 10.0f - 5.0f;
-                    float nx2 = ((float)std::rand() / (float)RAND_MAX) * 10.0f - 5.0f;
-                    float ny2 = ((float)std::rand() / (float)RAND_MAX) * 10.0f - 5.0f;
-                    vecDebris.push_back({m.x, m.y, nx1, ny1, 0.0f, 7.0f, 1});
-                    vecDebris.push_back({m.x, m.y, nx2, ny2, 0.0f, 7.0f, 1});
+                    float nx1 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
+                    float ny1 = -5.0f;
+                    float nx2 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
+                    float ny2 = -5.0f;
+                    vecDebris.push_back({m.x, m.y, nx1, ny1, 0.0f, 7.0f, 1, 0});
+                    vecDebris.push_back({m.x, m.y, nx2, ny2, 0.0f, 7.0f, 1, 0});
 
                     // remove meteor from gamespace
                     m.x = -100;
@@ -192,13 +196,33 @@ protected:
             }
         }
 
-        // TODO
+        // check collision with debris
+        for (auto& b : vecBullets)
+        {
+            for (auto& d : vecDebris)
+            {
+                if (IsPointInCircle(d.x, d.y, d.scale, b.x, b.y))
+                {
+                    // debris hit! remove bullet from gamespace
+                    b.x = -100;
+                    nScore += 50;
+
+                    // remove debris from gamespace
+                    d.x = -100;
+                }
+            }
+        }
+
         // update and draw debris
         for (auto& d : vecDebris)
         {
             d.x += d.dx * fElapsedTime; //std::sqrtf(d.x) * fElapsedTime;
-            d.y += d.dy * fElapsedTime;
-            d.angle += (((float)std::rand() / (float)RAND_MAX) * 6.0f - 3.0f) * fElapsedTime;
+            // TODO add gravity
+            if (d.y < groundLevel) 
+                d.y += ((d.dy + 30.0f)) * fElapsedTime;
+            else
+                d.x = -100;
+            d.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
             DrawWireFrameModel(vecModelDebris, d.x, d.y, d.angle, d.scale, PIXEL_SOLID, FG_YELLOW);
         }
 
@@ -207,29 +231,14 @@ protected:
         {
             m.x += m.dx * fElapsedTime;
             m.y += m.dy * fElapsedTime;
-            m.angle += (((float)std::rand() / (float)RAND_MAX) * 6.0f - 3.0f) * fElapsedTime;
+            m.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
             DrawWireFrameModel(vecModelMeteors, m.x, m.y, m.angle, m.scale, PIXEL_SOLID, FG_YELLOW);
         }
 
-        // remove off screen bullets
-        if (vecBullets.size() > 0)
-        {
-            auto i = std::remove_if(vecBullets.begin(), vecBullets.end(), [&](sBullets b) {return (b.y < 0); });
-            if (i != vecBullets.end())
-            {
-                vecBullets.erase(i);
-            }
-        }
-
-        // remove off screen meteors
-        if (vecMeteors.size() > 0)
-        {
-            auto i = std::remove_if(vecMeteors.begin(), vecMeteors.end(), [&](sObjects m) { return (m.x < -13) || m.x >(ScreenWidth() + 13); });
-            if (i != vecMeteors.end())
-            {
-                vecMeteors.erase(i);
-            }
-        }
+        // remove off screen objects
+        RemoveObjectsFromGameSpace(vecBullets);
+        RemoveObjectsFromGameSpace(vecMeteors);
+        RemoveObjectsFromGameSpace(vecDebris);
 
         // draw tank
         DrawWireFrameModel(vecModelTank, tank.x, tank.y, tank.angle, tank.scale, PIXEL_SOLID, FG_WHITE);
@@ -246,6 +255,19 @@ protected:
 
 // --- special functions ---
 protected:
+    template <class T>
+    void RemoveObjectsFromGameSpace(std::vector<T>& vecObjects)
+    {
+        if (vecObjects.size() > 0)
+        {
+            auto i = std::remove_if(vecObjects.begin(), vecObjects.end(), [&](T o) { return (o.x < -15 || o.y < -15 || o.x > ScreenWidth() + 15); });
+            if (i != vecObjects.end())
+            {
+                vecObjects.erase(i);
+            }
+        }
+    }
+    
     bool IsPointInCircle(float cx, float cy, float r, float x, float y)
     {
         float distance = std::sqrtf( (cx - x) * (cx - x) + (cy - y) * (cy - y));
