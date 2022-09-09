@@ -57,8 +57,9 @@ private:
 
     float speedBoost = 0.0f;
     int groundLevel = 95;
+    int baseHealth = 100;
     int nScore;
-    bool bDead;
+    bool bBaseBlownUp = false;
 
     // time
     //std::chrono::duration<double> durTimeOnGround(0);
@@ -88,23 +89,6 @@ protected:
             { 2.5f, 0.0f}
         };
 
-        // initiate tank position
-        tank.x = ScreenWidth() / 2;
-        tank.y = groundLevel;
-        tank.dx = 0;
-        tank.dy = 0;
-        tank.angle = 0;
-        tank.scale = 1.0f;
-        tank.health = 100;
-
-        // initiate 3 meteors at game start
-        for (int i = 0; i < 3; i++)
-        {        
-            float rx = ((float)std::rand() / (float)RAND_MAX) * 6.0f - 3.0f;
-            float ry = ((float)std::rand() / (float)RAND_MAX) * 2.0f + 5.0f;
-            vecMeteors.push_back({38.f + (i * 30), -5.0f, rx, ry, 0.0f, 9.0f, 3});
-        }
-
         // meteor model
         int numSections = 20;
         for (int i = 0; i < numSections; i++)
@@ -123,12 +107,19 @@ protected:
             vecModelDebris.push_back(std::make_pair(radius * cosf(angle), radius * sinf(angle)));
         }
 
+        ResetGame();
         return true;
     }
 
     // Called by olcConsoleGameEngine
     virtual bool OnUserUpdate(float fElapsedTime)
     {
+        if (baseHealth <= 0)
+        {
+            bBaseBlownUp == true;
+            ResetGame();
+        }
+
         // clear screen, background fill, reset every frame
         Fill(0, 0, m_nScreenWidth, 97, PIXEL_SOLID, 0);
 
@@ -143,13 +134,13 @@ protected:
 
         // tank movement
         if (m_keys[VK_LSHIFT].bHeld)
-            speedBoost = 30.0f;
+            speedBoost = 50.0f;
         else
             speedBoost = 0.0f;
         if (m_keys[VK_LEFT].bHeld)
-            tank.x += -(35.0f + speedBoost) * fElapsedTime;
+            tank.x += -(40.0f + speedBoost) * fElapsedTime;
         if (m_keys[VK_RIGHT].bHeld)
-            tank.x += +(35.0f + speedBoost) * fElapsedTime;
+            tank.x += +(40.0f + speedBoost) * fElapsedTime;
 
         // limit tank mobility
         if (tank.x < 3.5)
@@ -180,18 +171,31 @@ protected:
                 {
                     // meteor hit! remove bullet from gamespace
                     b.x = -100;
-                    nScore += 100;
+                    nScore += 5;
+                    Draw(m.x, m.y, PIXEL_SOLID, FG_RED);
 
-                    // create 2 debris falling from the sky
-                    float nx1 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
-                    float ny1 = -5.0f;
-                    float nx2 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
-                    float ny2 = -5.0f;
-                    vecDebris.push_back({m.x, m.y, nx1, ny1, 0.0f, 7.0f, 1, 0});
-                    vecDebris.push_back({m.x, m.y, nx2, ny2, 0.0f, 7.0f, 1, 0});
 
-                    // remove meteor from gamespace
-                    m.x = -100;
+                    if (m.health > 0)
+                    {
+                        m.health -= 1;
+                    }
+                    else
+                    {
+                        // meteor blown up
+                        nScore += 100;
+                        DrawCircle(m.x, m.y, 3, PIXEL_SOLID, FG_RED);
+
+                        // create 2 debris falling from the sky
+                        float nx1 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
+                        float ny1 = -5.0f;
+                        float nx2 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
+                        float ny2 = -5.0f;
+                        vecDebris.push_back({ m.x + 2.0f, m.y + 2.0f, nx1, ny1, 0.0f, 7.0f, 1, 0 });
+                        vecDebris.push_back({ m.x - 2.0f, m.y + 2.0f, nx2, ny2, 0.0f, 7.0f, 1, 0 });
+
+                        // remove meteor from gamespace
+                        m.x = -100;
+                    }
                 }
             }
         }
@@ -203,9 +207,10 @@ protected:
             {
                 if (IsPointInCircle(d.x, d.y, d.scale, b.x, b.y))
                 {
-                    // debris hit! remove bullet from gamespace
+                    // debris hit! 
                     b.x = -100;
-                    nScore += 50;
+                    nScore += 30;
+                    Draw(d.x, d.y, PIXEL_SOLID, FG_RED);
 
                     // remove debris from gamespace
                     d.x = -100;
@@ -213,26 +218,50 @@ protected:
             }
         }
 
-        // update and draw debris
-        for (auto& d : vecDebris)
-        {
-            d.x += d.dx * fElapsedTime; //std::sqrtf(d.x) * fElapsedTime;
-            // TODO add gravity
-            if (d.y < groundLevel) 
-                d.y += ((d.dy + 30.0f)) * fElapsedTime;
-            else
-                d.x = -100;
-            d.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
-            DrawWireFrameModel(vecModelDebris, d.x, d.y, d.angle, d.scale, PIXEL_SOLID, FG_YELLOW);
-        }
-
         // update and draw meteors
         for (auto& m : vecMeteors)
         {
             m.x += m.dx * fElapsedTime;
             m.y += m.dy * fElapsedTime;
+
+            if (m.y >= groundLevel)
+            {
+                // remove from gamespace and decrease base health
+                m.x = -100;
+                baseHealth -= 5;
+            }
             m.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
             DrawWireFrameModel(vecModelMeteors, m.x, m.y, m.angle, m.scale, PIXEL_SOLID, FG_YELLOW);
+        }
+
+        // update and draw debris
+        for (auto& d : vecDebris)
+        {
+            d.x += d.dx * fElapsedTime;
+            if (d.y < groundLevel)
+                d.y += ((d.dy + 25.0f)) * fElapsedTime;
+            if (d.y >= groundLevel)
+            {
+                // remove from gamespace and decrease base health
+                d.x = -100;
+                baseHealth -= 1;
+            }
+
+            d.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
+            DrawWireFrameModel(vecModelDebris, d.x, d.y, d.angle, d.scale, PIXEL_SOLID, FG_YELLOW);
+        }
+
+
+        // 2 of 3  meteors shot down? get more!
+        float rx, ry, rdy;
+        if (vecMeteors.size() < 2)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                rx = ((float)std::rand() / (float)RAND_MAX) * 6.0f - 3.0f;
+                ry = ((float)std::rand() / (float)RAND_MAX) * 5.0f + 15.0f;
+                vecMeteors.push_back({ 38.f + (i * 30), -5.0f, rx, ry, 0.0f, 9.0f, 2 });
+            }
         }
 
         // remove off screen objects
@@ -244,7 +273,8 @@ protected:
         DrawWireFrameModel(vecModelTank, tank.x, tank.y, tank.angle, tank.scale, PIXEL_SOLID, FG_WHITE);
 
         // monitoring
-        DrawString(2, 2, L"nBullets: " + std::to_wstring(vecBullets.size()));
+        DrawString(2, 2, L"baseHealth: " + std::to_wstring(baseHealth));
+        DrawString(2, 3, L"nBullets: " + std::to_wstring(vecBullets.size()));
         DrawString(60, 2, L"nScore: " + std::to_wstring(nScore));
 
         // draw ground
@@ -253,7 +283,7 @@ protected:
         return true;
     }
 
-// --- special functions ---
+    // --- special functions ---
 protected:
     template <class T>
     void RemoveObjectsFromGameSpace(std::vector<T>& vecObjects)
@@ -267,7 +297,36 @@ protected:
             }
         }
     }
-    
+
+    void ResetGame()
+    {
+        nScore = 0;
+        baseHealth = 100;
+        bBaseBlownUp = false;
+
+        vecBullets.clear();
+        vecMeteors.clear();
+        vecDebris.clear();
+
+        // initiate tank position
+        tank.x = ScreenWidth() / 2;
+        tank.y = groundLevel;
+        tank.dx = 0;
+        tank.dy = 0;
+        tank.angle = 0;
+        tank.scale = 1.0f;
+        tank.health = 100;
+
+        // initiate 3 meteors at game start
+        float rx, ry, rdy;
+        for (int i = 0; i < 3; i++)
+        {
+            rx = ((float)std::rand() / (float)RAND_MAX) * 6.0f - 3.0f;
+            ry = ((float)std::rand() / (float)RAND_MAX) * 2.0f + 5.0f;
+            vecMeteors.push_back({ 38.f + (i * 30), -5.0f, rx, ry, 0.0f, 9.0f, 2 });
+        }
+    }
+
     bool IsPointInCircle(float cx, float cy, float r, float x, float y)
     {
         float distance = std::sqrtf( (cx - x) * (cx - x) + (cy - y) * (cy - y));
