@@ -116,7 +116,7 @@ protected:
     {
         if (baseHealth <= 0)
         {
-            bBaseBlownUp == true;
+            bBaseBlownUp = true;
             ResetGame();
         }
 
