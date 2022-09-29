@@ -43,6 +43,8 @@ private:
         float scale;
         int health;
         int bounce;
+        float ax;
+        float ay;
     };
 
     std::vector<sStars> vecStars;
@@ -57,7 +59,7 @@ private:
 
     float speedBoost = 0.0f;
     int groundLevel = 95;
-    int baseHealth = 100;
+    float baseHealth = 100.0f;
     int nScore;
     bool bBaseBlownUp = false;
 
@@ -186,10 +188,10 @@ protected:
                         DrawCircle(m.x, m.y, 3, PIXEL_SOLID, FG_RED);
 
                         // create 2 debris falling from the sky
-                        float nx1 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
-                        float ny1 = -5.0f;
-                        float nx2 = ((float)std::rand() / (float)RAND_MAX) * 20.0f - 10.0f;
-                        float ny2 = -5.0f;
+                        float nx1 = ((float)std::rand() / (float)RAND_MAX) * 10.0f - 5.0f;
+                        float ny1 = -3.0f;
+                        float nx2 = ((float)std::rand() / (float)RAND_MAX) * 10.0f - 5.0f;
+                        float ny2 = -3.0f;
                         vecDebris.push_back({ m.x + 2.0f, m.y + 2.0f, nx1, ny1, 0.0f, 7.0f, 1, 0 });
                         vecDebris.push_back({ m.x - 2.0f, m.y + 2.0f, nx2, ny2, 0.0f, 7.0f, 1, 0 });
 
@@ -228,27 +230,49 @@ protected:
             {
                 // remove from gamespace and decrease base health
                 m.x = -100;
-                baseHealth -= 5;
+                baseHealth -= 5.0f;
             }
             m.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
             DrawWireFrameModel(vecModelMeteors, m.x, m.y, m.angle, m.scale, PIXEL_SOLID, FG_YELLOW);
         }
 
         // update and draw debris
-        for (auto& d : vecDebris)
+        // iterate 10 times per frame
+        for (int z = 0; z < 5; z++)
         {
-            d.x += d.dx * fElapsedTime;
-            if (d.y < groundLevel)
-                d.y += ((d.dy + 25.0f)) * fElapsedTime;
-            if (d.y >= groundLevel)
+            for (auto& d : vecDebris)
             {
-                // remove from gamespace and decrease base health
-                d.x = -100;
-                baseHealth -= 1;
-            }
+                // gravity
+                d.ax = 0;
+                d.ay += 1.0f;
+            
+                // velocity
+                d.dx += d.ax * fElapsedTime;
+                d.dy += d.ay * fElapsedTime;
 
-            d.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
-            DrawWireFrameModel(vecModelDebris, d.x, d.y, d.angle, d.scale, PIXEL_SOLID, FG_YELLOW);
+                d.x += d.dx * fElapsedTime;
+                if (d.y < groundLevel)
+                    d.y += ((d.dy + d.ay)) * fElapsedTime;
+                if (d.x < 0 || d.x > ScreenWidth())
+                {
+                    // remove from gamespace
+                    d.x = -100;
+                }
+                if (d.y >= groundLevel)
+                {
+                    // remove from gamespace and decrease base health
+                    d.x = -100;
+                    baseHealth -= 0.2f;
+                }
+
+                // reset acceleration
+                d.ax = 0;
+                d.ay = 0;
+
+                // angle
+                d.angle += (((float)std::rand() / (float)RAND_MAX) * 3.0f) * fElapsedTime;
+                DrawWireFrameModel(vecModelDebris, d.x, d.y, d.angle, d.scale, PIXEL_SOLID, FG_YELLOW);
+            }
         }
 
 
@@ -301,7 +325,7 @@ protected:
     void ResetGame()
     {
         nScore = 0;
-        baseHealth = 100;
+        baseHealth = 100.0f;
         bBaseBlownUp = false;
 
         vecBullets.clear();
